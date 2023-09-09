@@ -1,58 +1,43 @@
-#include <stdio.h>
-#include "threadbarrier.h"
+#ifndef __TH_BARRIER__
+#define __TH_BARRIER__
 
-// Declare and initialize the thread barrier.
-static th_barrier_t th_barrier;
+#include <stdint.h>
+#include <stdbool.h>
+#include <pthread.h>
 
-// The main function for each thread.
-void * thread_fn_callback (void *arg) {
-    
-    // First wait at the thread barrier.
-    thread_barrier_wait(&th_barrier);
-    // Print which thread has passed the first barrier.
-    printf("1st barricade cleared by thread %s\n", (char *)arg);
+// Define a thread barrier structure
+typedef struct th_barrier_ {
+    uint32_t threshold_count;         // Number of threads that must call thread_barrier_wait() 
+                                      // before any of them successfully return from the call
+    uint32_t curr_wait_count;         // Current count of threads waiting on the barrier
+    pthread_cond_t cv;                // Condition variable for threads to block until barrier is lifted
+    pthread_mutex_t mutex;            // Mutex to protect barrier state
+    bool is_ready_again;              // Flag to check if barrier can be reused
+    pthread_cond_t busy_cv;           // Condition variable to block threads until barrier is ready again
+} th_barrier_t;
 
-    // Second wait at the thread barrier.
-    thread_barrier_wait(&th_barrier);
-    // Print which thread has passed the second barrier.
-    printf("2nd barricade cleared by thread %s\n", (char *)arg);
+// Function to initialize the thread barrier
+// Parameters:
+// barrier - pointer to the thread barrier object
+// threshold_count - number of threads required to lift the barrier
+void
+thread_barrier_init ( th_barrier_t *barrier, 
+                      uint32_t threshold_count);
 
-    // Third wait at the thread barrier.
-    thread_barrier_wait(&th_barrier);
-    // Print which thread has passed the third barrier.
-    printf("3rd barricade cleared by thread %s\n", (char *)arg);
-    
-    // Exit the thread after all barriers are crossed.
-    pthread_exit(0);
-    return NULL;
-}
+// Function to make a thread wait at the barrier.
+// Once the threshold_count threads have called this function, 
+//They can all continue their execution
+// Parameters:
+// barrier - pointer to the thread barrier object
+void
+thread_barrier_wait ( th_barrier_t *barrier);
 
-// Thread objects.
-static pthread_t pthreads[3];
+// Function to destroy the thread barrier and free up any resources.
+// It's crucial to call this function to avoid any memory leaks and to clean up 
+// the mutex and condition variables.
+// Parameters:
+// barrier - pointer to the thread barrier object
+void
+thread_barrier_destroy ( th_barrier_t *barrier );
 
-int main() {
-    // Initialize the thread barrier for 3 threads.
-    thread_barrier_init(&th_barrier, 3);
-    
-    // Create the first thread and pass the thread's name.
-    static const char *th1 = "th1";
-    pthread_create(&pthreads[0], NULL, thread_fn_callback, (void *)th1);
-    
-    // Create the second thread and pass the thread's name.
-    static const char *th2 = "th2";
-    pthread_create(&pthreads[1], NULL, thread_fn_callback, (void *)th2);
-    
-    // Create the third thread and pass the thread's name.
-    static const char *th3 = "th3";
-    pthread_create(&pthreads[2], NULL, thread_fn_callback, (void *)th3);
-    
-    // Join the threads, i.e., wait for all threads to finish.
-    pthread_join(pthreads[0], NULL);
-    pthread_join(pthreads[1], NULL);
-    pthread_join(pthreads[2], NULL);
-
-    // Print the final status of the thread barrier.
-    thread_barrier_print(&th_barrier);
-    return 0;
-}
-
+#endif 
